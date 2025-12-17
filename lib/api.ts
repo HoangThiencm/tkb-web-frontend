@@ -156,16 +156,21 @@ export const timetableAPI = {
     return response.data
   },
   createSession: async (unitId: number, schoolYear: string, sessionData: { session_name: string; effective_date?: string; timetable?: any }) => {
-    // Backend expects both session and timetable_data in body
+    // Backend expects 2 separate objects: session and timetable_data
+    // FastAPI will parse them from the request body
     const response = await apiClient.post(
-      '/timetable/sessions',
+      `/timetable/sessions?unit_id=${unitId}&school_year=${schoolYear}`,
       {
+        // This will be parsed as TimetableSessionCreate
         session_name: sessionData.session_name,
         effective_date: sessionData.effective_date || new Date().toISOString().split('T')[0],
+        // This will be parsed as TimetableData
         timetable: sessionData.timetable || {},
       },
       {
-        params: { unit_id: unitId, school_year: schoolYear },
+        headers: {
+          'Content-Type': 'application/json',
+        },
       }
     )
     return response.data
