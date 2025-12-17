@@ -78,6 +78,11 @@ export default function DashboardPage() {
       setUnitName(data.name)
       setShowUnitInput(false)
       setNewUnitName('')
+      alert(`✅ Đã thêm đơn vị "${data.name}" thành công!`)
+    },
+    onError: (error: any) => {
+      const errorMessage = error.response?.data?.detail || error.message || 'Lỗi khi thêm đơn vị'
+      alert(`❌ Lỗi: ${errorMessage}`)
     },
   })
 
@@ -97,11 +102,12 @@ export default function DashboardPage() {
         throw new Error(error.response?.data?.detail || 'Lỗi khi tạo đợt TKB')
       }
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['timetable-sessions'] })
       setShowSessionDialog(false)
+      const sessionName = data?.session_name || newSessionName
       setNewSessionName('')
-      alert('Tạo đợt TKB thành công!')
+      alert(`✅ Đã tạo đợt TKB "${sessionName}" thành công!`)
     },
     onError: (error: any) => {
       alert(error.message || 'Lỗi khi tạo đợt TKB')
@@ -116,12 +122,13 @@ export default function DashboardPage() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['timetable-sessions'] })
       const message = variables.isLocked 
-        ? 'Đã khóa đợt TKB. Không thể chỉnh sửa được nữa.'
-        : 'Đã mở khóa đợt TKB. Có thể chỉnh sửa được.'
+        ? '✅ Đã khóa đợt TKB. Không thể chỉnh sửa được nữa.'
+        : '✅ Đã mở khóa đợt TKB. Có thể chỉnh sửa được.'
       alert(message)
     },
     onError: (error: any) => {
-      alert(error.response?.data?.detail || 'Lỗi khi thay đổi trạng thái khóa')
+      const errorMessage = error.response?.data?.detail || error.message || 'Lỗi khi thay đổi trạng thái khóa'
+      alert(`❌ Lỗi: ${errorMessage}`)
     },
   })
 
@@ -130,10 +137,11 @@ export default function DashboardPage() {
     mutationFn: (sessionId: number) => timetableAPI.deleteSession(sessionId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['timetable-sessions'] })
-      alert('Đã xóa đợt TKB thành công!')
+      alert('✅ Đã xóa đợt TKB thành công!')
     },
     onError: (error: any) => {
-      alert(error.response?.data?.detail || 'Lỗi khi xóa đợt TKB')
+      const errorMessage = error.response?.data?.detail || error.message || 'Lỗi khi xóa đợt TKB'
+      alert(`❌ Lỗi: ${errorMessage}`)
     },
   })
 
@@ -179,9 +187,11 @@ export default function DashboardPage() {
   )
 
   const handleCreateUnit = () => {
-    if (newUnitName.trim()) {
-      createUnitMutation.mutate(newUnitName.trim())
+    if (!newUnitName.trim()) {
+      alert('⚠️ Vui lòng nhập tên đơn vị')
+      return
     }
+    createUnitMutation.mutate(newUnitName.trim())
   }
 
   const handleCreateSession = () => {
