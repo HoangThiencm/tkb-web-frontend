@@ -86,6 +86,24 @@ export default function DashboardPage() {
     },
   })
 
+  // Mutation để xóa đơn vị
+  const deleteUnitMutation = useMutation({
+    mutationFn: (unitId: number) => unitsAPI.delete(unitId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['units'] })
+      // Nếu đơn vị đang được chọn bị xóa, reset selection
+      if (selectedUnitId) {
+        setSelectedUnitId(null)
+        setUnitName('')
+      }
+      alert('✅ Đã xóa đơn vị thành công!')
+    },
+    onError: (error: any) => {
+      const errorMessage = error.response?.data?.detail || error.message || 'Lỗi khi xóa đơn vị'
+      alert(`❌ Lỗi: ${errorMessage}`)
+    },
+  })
+
   // Mutation để tạo đợt TKB mới
   const createSessionMutation = useMutation({
     mutationFn: async (sessionName: string) => {
@@ -194,6 +212,12 @@ export default function DashboardPage() {
     createUnitMutation.mutate(newUnitName.trim())
   }
 
+  const handleDeleteUnit = (unitId: number, unitName: string) => {
+    if (confirm(`⚠️ CẢNH BÁO: Bạn có chắc muốn XÓA đơn vị "${unitName}"?\n\nHành động này sẽ XÓA VĨNH VIỄN:\n- Tất cả giáo viên\n- Tất cả lớp học\n- Tất cả môn học\n- Tất cả đợt TKB\n- Và tất cả dữ liệu liên quan\n\nHành động này KHÔNG THỂ hoàn tác!\n\nNhấn OK để xác nhận xóa.`)) {
+      deleteUnitMutation.mutate(unitId)
+    }
+  }
+
   const handleCreateSession = () => {
     if (!newSessionName.trim()) {
       alert('Vui lòng nhập tên đợt TKB')
@@ -268,6 +292,21 @@ export default function DashboardPage() {
                     >
                       + Thêm mới
                     </button>
+                    {selectedUnitId && (
+                      <button
+                        onClick={() => {
+                          const unit = units?.find((u: any) => u.id === selectedUnitId)
+                          if (unit) {
+                            handleDeleteUnit(selectedUnitId, unit.name)
+                          }
+                        }}
+                        disabled={deleteUnitMutation.isPending}
+                        className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 disabled:opacity-50"
+                        title="Xóa đơn vị đang chọn"
+                      >
+                        🗑️ Xóa đơn vị
+                      </button>
+                    )}
                   </>
                 ) : (
                   <>
