@@ -113,6 +113,13 @@ export const subjectsAPI = {
     })
     return response.data
   },
+  update: async (unitId: number, schoolYear: string, subjectName: string, data: any) => {
+    // Note: Backend may not have update endpoint, so we delete and recreate
+    await apiClient.delete(`/subjects/${subjectName}`, {
+      params: { unit_id: unitId, school_year: schoolYear },
+    })
+    return await subjectsAPI.create(unitId, schoolYear, data)
+  },
   delete: async (unitId: number, schoolYear: string, subjectName: string) => {
     const response = await apiClient.delete(`/subjects/${subjectName}`, {
       params: { unit_id: unitId, school_year: schoolYear },
@@ -134,6 +141,13 @@ export const classesAPI = {
       params: { unit_id: unitId, school_year: schoolYear },
     })
     return response.data
+  },
+  update: async (unitId: number, schoolYear: string, className: string, data: any) => {
+    // Note: Backend may not have update endpoint, so we delete and recreate
+    await apiClient.delete(`/classes/${className}`, {
+      params: { unit_id: unitId, school_year: schoolYear },
+    })
+    return await classesAPI.create(unitId, schoolYear, data)
   },
   delete: async (unitId: number, schoolYear: string, className: string) => {
     const response = await apiClient.delete(`/classes/${className}`, {
