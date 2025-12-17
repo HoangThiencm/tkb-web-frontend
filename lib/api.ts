@@ -45,120 +45,67 @@ export const authAPI = {
     })
     return response.data
   },
-  getMe: async () => {
-    const response = await apiClient.get('/auth/me')
-    return response.data
-  },
 }
 
 // Units API
 export const unitsAPI = {
-  getAll: async () => {
-    const response = await apiClient.get('/units')
-    return response.data
-  },
-  create: async (name: string) => {
-    const response = await apiClient.post('/units', { name })
-    return response.data
-  },
-  update: async (id: number, name: string) => {
-    const response = await apiClient.put(`/units/${id}`, { name })
-    return response.data
-  },
-  delete: async (id: number) => {
-    const response = await apiClient.delete(`/units/${id}`)
-    return response.data
-  },
+    getAll: async () => {
+        const response = await apiClient.get('/units')
+        return response.data
+    },
+    // Thêm các method khác nếu cần
 }
 
 // Teachers API
 export const teachersAPI = {
-  getAll: async (unitId: number, schoolYear: string) => {
-    const response = await apiClient.get('/teachers', {
-      params: { unit_id: unitId, school_year: schoolYear },
-    })
-    return response.data
-  },
-  create: async (unitId: number, schoolYear: string, data: any) => {
-    const response = await apiClient.post('/teachers', data, {
-      params: { unit_id: unitId, school_year: schoolYear },
-    })
-    return response.data
-  },
-  update: async (unitId: number, schoolYear: string, teacherId: string, data: any) => {
-    const response = await apiClient.put(`/teachers/${teacherId}`, data, {
-      params: { unit_id: unitId, school_year: schoolYear },
-    })
-    return response.data
-  },
-  delete: async (unitId: number, schoolYear: string, teacherId: string) => {
-    const response = await apiClient.delete(`/teachers/${teacherId}`, {
-      params: { unit_id: unitId, school_year: schoolYear },
-    })
-    return response.data
-  },
+    getAll: async (unitId: number) => {
+        const response = await apiClient.get(`/units/${unitId}/teachers`)
+        return response.data
+    },
+    importData: async (unitId: number, data: any[]) => {
+        const response = await apiClient.post(`/units/${unitId}/teachers/import`, data)
+        return response.data
+    },
+    delete: async (id: string) => {
+        const response = await apiClient.delete(`/teachers/${id}`)
+        return response.data
+    }
 }
 
 // Subjects API
 export const subjectsAPI = {
-  getAll: async (unitId: number, schoolYear: string) => {
-    const response = await apiClient.get('/subjects', {
-      params: { unit_id: unitId, school_year: schoolYear },
-    })
-    return response.data
-  },
-  create: async (unitId: number, schoolYear: string, data: any) => {
-    const response = await apiClient.post('/subjects', data, {
-      params: { unit_id: unitId, school_year: schoolYear },
-    })
-    return response.data
-  },
-  update: async (unitId: number, schoolYear: string, subjectName: string, data: any) => {
-    // Note: Backend may not have update endpoint, so we delete and recreate
-    await apiClient.delete(`/subjects/${subjectName}`, {
-      params: { unit_id: unitId, school_year: schoolYear },
-    })
-    return await subjectsAPI.create(unitId, schoolYear, data)
-  },
-  delete: async (unitId: number, schoolYear: string, subjectName: string) => {
-    const response = await apiClient.delete(`/subjects/${subjectName}`, {
-      params: { unit_id: unitId, school_year: schoolYear },
-    })
-    return response.data
-  },
+    getAll: async (unitId: number) => {
+        const response = await apiClient.get(`/units/${unitId}/subjects`)
+        return response.data
+    },
+    importData: async (unitId: number, data: any[]) => {
+        const response = await apiClient.post(`/units/${unitId}/subjects/import`, data)
+        return response.data
+    },
+    delete: async (id: string) => {
+        const response = await apiClient.delete(`/subjects/${id}`)
+        return response.data
+    }
 }
 
 // Classes API
 export const classesAPI = {
-  getAll: async (unitId: number, schoolYear: string) => {
-    const response = await apiClient.get('/classes', {
-      params: { unit_id: unitId, school_year: schoolYear },
-    })
-    return response.data
-  },
-  create: async (unitId: number, schoolYear: string, data: any) => {
-    const response = await apiClient.post('/classes', data, {
-      params: { unit_id: unitId, school_year: schoolYear },
-    })
-    return response.data
-  },
-  update: async (unitId: number, schoolYear: string, className: string, data: any) => {
-    // Note: Backend may not have update endpoint, so we delete and recreate
-    await apiClient.delete(`/classes/${className}`, {
-      params: { unit_id: unitId, school_year: schoolYear },
-    })
-    return await classesAPI.create(unitId, schoolYear, data)
-  },
-  delete: async (unitId: number, schoolYear: string, className: string) => {
-    const response = await apiClient.delete(`/classes/${className}`, {
-      params: { unit_id: unitId, school_year: schoolYear },
-    })
-    return response.data
-  },
+    getAll: async (unitId: number) => {
+        const response = await apiClient.get(`/units/${unitId}/classes`)
+        return response.data
+    },
+    importData: async (unitId: number, data: any[]) => {
+        const response = await apiClient.post(`/units/${unitId}/classes/import`, data)
+        return response.data
+    },
+    delete: async (id: string) => {
+        const response = await apiClient.delete(`/classes/${id}`)
+        return response.data
+    }
 }
 
-// Timetable API
-export const timetableAPI = {
+// Timetable/Sessions API
+export const sessionsAPI = {
   getSessions: async (unitId: number, schoolYear: string) => {
     const response = await apiClient.get('/timetable/sessions', {
       params: { unit_id: unitId, school_year: schoolYear },
@@ -195,9 +142,15 @@ export const timetableAPI = {
 
 // Solver API
 export const solverAPI = {
-  solve: async (data: any) => {
-    const response = await apiClient.post('/solver/solve', data)
-    return response.data
-  },
+    // ... code solver API của bạn ...
+    triggerSolver: async (sessionId: number, params: any) => {
+         const response = await apiClient.post(`/solver/solve/${sessionId}`, params)
+         return response.data
+    },
+    getStatus: async (taskId: string) => {
+         const response = await apiClient.get(`/solver/status/${taskId}`)
+         return response.data
+    }
 }
 
+export default apiClient
