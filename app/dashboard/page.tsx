@@ -85,16 +85,26 @@ export default function DashboardPage() {
   const createSessionMutation = useMutation({
     mutationFn: async (sessionName: string) => {
       if (!selectedUnitId) throw new Error('Chưa chọn đơn vị')
-      return timetableAPI.createSession(selectedUnitId, schoolYear, {
-        session_name: sessionName,
-        effective_date: new Date().toISOString().split('T')[0],
-        timetable: {},
-      })
+      if (!schoolYear.trim()) throw new Error('Chưa nhập năm học')
+      try {
+        const result = await timetableAPI.createSession(selectedUnitId, schoolYear, {
+          session_name: sessionName,
+          effective_date: new Date().toISOString().split('T')[0],
+          timetable: {},
+        })
+        return result
+      } catch (error: any) {
+        throw new Error(error.response?.data?.detail || 'Lỗi khi tạo đợt TKB')
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['timetable-sessions'] })
       setShowSessionDialog(false)
       setNewSessionName('')
+      alert('Tạo đợt TKB thành công!')
+    },
+    onError: (error: any) => {
+      alert(error.message || 'Lỗi khi tạo đợt TKB')
     },
   })
 
@@ -103,8 +113,15 @@ export default function DashboardPage() {
     mutationFn: async ({ sessionId, isLocked }: { sessionId: number; isLocked: boolean }) => {
       return timetableAPI.toggleLock(sessionId, isLocked)
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['timetable-sessions'] })
+      const message = variables.isLocked 
+        ? 'Đã khóa đợt TKB. Không thể chỉnh sửa được nữa.'
+        : 'Đã mở khóa đợt TKB. Có thể chỉnh sửa được.'
+      alert(message)
+    },
+    onError: (error: any) => {
+      alert(error.response?.data?.detail || 'Lỗi khi thay đổi trạng thái khóa')
     },
   })
 
@@ -113,6 +130,10 @@ export default function DashboardPage() {
     mutationFn: (sessionId: number) => timetableAPI.deleteSession(sessionId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['timetable-sessions'] })
+      alert('Đã xóa đợt TKB thành công!')
+    },
+    onError: (error: any) => {
+      alert(error.response?.data?.detail || 'Lỗi khi xóa đợt TKB')
     },
   })
 
@@ -164,19 +185,34 @@ export default function DashboardPage() {
   }
 
   const handleCreateSession = () => {
-    if (newSessionName.trim()) {
-      createSessionMutation.mutate(newSessionName.trim())
+    if (!newSessionName.trim()) {
+      alert('Vui lòng nhập tên đợt TKB')
+      return
     }
+    if (!selectedUnitId) {
+      alert('Vui lòng chọn đơn vị trước')
+      return
+    }
+    if (!schoolYear.trim()) {
+      alert('Vui lòng nhập năm học trước')
+      return
+    }
+    createSessionMutation.mutate(newSessionName.trim())
   }
 
   const handleToggleLock = (sessionId: number, currentLockStatus: boolean) => {
-    if (confirm(`Bạn có chắc muốn ${currentLockStatus ? 'mở khóa' : 'khóa'} đợt TKB này?`)) {
+    const action = currentLockStatus ? 'mở khóa' : 'khóa'
+    const message = currentLockStatus 
+      ? 'Bạn có chắc muốn mở khóa đợt TKB này? Sau khi mở khóa, có thể chỉnh sửa được.'
+      : 'Bạn có chắc muốn khóa đợt TKB này? Sau khi khóa, không thể chỉnh sửa được nữa.'
+    
+    if (confirm(message)) {
       toggleLockMutation.mutate({ sessionId, isLocked: !currentLockStatus })
     }
   }
 
   const handleDeleteSession = (sessionId: number, sessionName: string) => {
-    if (confirm(`Bạn có chắc muốn xóa đợt TKB "${sessionName}"? Hành động này không thể hoàn tác.`)) {
+    if (confirm(`⚠️ CẢNH BÁO: Bạn có chắc muốn XÓA đợt TKB "${sessionName}"?\n\nHành động này sẽ XÓA VĨNH VIỄN toàn bộ dữ liệu TKB của đợt này và KHÔNG THỂ hoàn tác!\n\nNhấn OK để xác nhận xóa.`)) {
       deleteSessionMutation.mutate(sessionId)
     }
   }
@@ -261,7 +297,20 @@ export default function DashboardPage() {
                   onChange={(e) => setSchoolYear(e.target.value)}
                   placeholder="2025-2026"
                   className="border rounded px-3 py-1 w-32"
+                  onKeyPress={(e) => e.key === 'Enter' && alert('Năm học đã được cập nhật: ' + schoolYear)}
                 />
+                <button
+                  onClick={() => {
+                    if (schoolYear.trim()) {
+                      alert('Năm học đã được cập nhật: ' + schoolYear)
+                    } else {
+                      alert('Vui lòng nhập năm học')
+                    }
+                  }}
+                  className="px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600"
+                >
+                  Lưu năm học
+                </button>
               </div>
             </div>
 
@@ -284,46 +333,72 @@ export default function DashboardPage() {
                 ))}
               </select>
               <button
-                onClick={() => setShowSessionDialog(true)}
-                disabled={!selectedUnitId}
+                onClick={() => {
+                  if (!selectedUnitId) {
+                    alert('Vui lòng chọn đơn vị trước')
+                    return
+                  }
+                  if (!schoolYear.trim()) {
+                    alert('Vui lòng nhập năm học trước')
+                    return
+                  }
+                  setShowSessionDialog(true)
+                }}
                 className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
               >
-                + Thêm đợt mới
+                + Thêm đợt TKB mới
               </button>
             </div>
 
-            {/* Danh sách đợt TKB */}
-            {sessions && sessions.length > 0 && (
-              <div className="border-t pt-4">
-                <label className="font-semibold block mb-2">Danh sách đợt TKB:</label>
+            {/* Danh sách đợt TKB - Luôn hiển thị */}
+            <div className="border-t pt-4">
+              <label className="font-semibold block mb-2">Danh sách đợt TKB:</label>
+              {sessionsLoading ? (
+                <div className="text-gray-500">Đang tải...</div>
+              ) : sessions && sessions.length > 0 ? (
                 <div className="space-y-2">
                   {sessions.map((session: any) => (
                     <div
                       key={session.id}
-                      className="flex items-center justify-between p-2 bg-gray-50 rounded"
+                      className="flex items-center justify-between p-3 bg-gray-50 rounded border"
                     >
-                      <span>
-                        {session.session_name} {session.is_locked && <span className="text-red-600">(Đã khóa)</span>}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">
+                          {session.session_name}
+                        </span>
+                        {session.is_locked && (
+                          <span className="px-2 py-1 text-xs bg-red-100 text-red-700 rounded font-semibold">
+                            ĐÃ KHÓA
+                          </span>
+                        )}
+                      </div>
                       <div className="flex gap-2">
                         <button
                           onClick={() => handleToggleLock(session.id, session.is_locked)}
-                          className="px-2 py-1 text-sm bg-yellow-500 text-white rounded hover:bg-yellow-600"
+                          className="px-3 py-1 text-sm bg-yellow-500 text-white rounded hover:bg-yellow-600 font-medium"
+                          title={session.is_locked ? 'Mở khóa để có thể chỉnh sửa' : 'Khóa để không thể chỉnh sửa'}
                         >
-                          {session.is_locked ? 'Mở khóa' : 'Khóa'}
+                          {session.is_locked ? '🔓 Mở khóa' : '🔒 Khóa'}
                         </button>
                         <button
                           onClick={() => handleDeleteSession(session.id, session.session_name)}
-                          className="px-2 py-1 text-sm bg-red-500 text-white rounded hover:bg-red-600"
+                          className="px-3 py-1 text-sm bg-red-500 text-white rounded hover:bg-red-600 font-medium"
+                          title="Xóa vĩnh viễn đợt TKB này"
                         >
-                          Xóa
+                          🗑️ Xóa
                         </button>
                       </div>
                     </div>
                   ))}
                 </div>
-              </div>
-            )}
+              ) : (
+                <div className="text-gray-500 p-4 bg-gray-50 rounded border">
+                  {selectedUnitId && schoolYear.trim() 
+                    ? 'Chưa có đợt TKB nào. Nhấn nút "+ Thêm đợt TKB mới" để tạo đợt đầu tiên.'
+                    : 'Vui lòng chọn đơn vị và nhập năm học để xem danh sách đợt TKB.'}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
