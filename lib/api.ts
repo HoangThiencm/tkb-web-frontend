@@ -155,10 +155,19 @@ export const timetableAPI = {
     const response = await apiClient.get(`/timetable/sessions/${sessionId}`)
     return response.data
   },
-  createSession: async (unitId: number, schoolYear: string, data: any) => {
-    const response = await apiClient.post('/timetable/sessions', data, {
-      params: { unit_id: unitId, school_year: schoolYear },
-    })
+  createSession: async (unitId: number, schoolYear: string, sessionData: { session_name: string; effective_date?: string; timetable?: any }) => {
+    // Backend expects both session and timetable_data in body
+    const response = await apiClient.post(
+      '/timetable/sessions',
+      {
+        session_name: sessionData.session_name,
+        effective_date: sessionData.effective_date || new Date().toISOString().split('T')[0],
+        timetable: sessionData.timetable || {},
+      },
+      {
+        params: { unit_id: unitId, school_year: schoolYear },
+      }
+    )
     return response.data
   },
   toggleLock: async (sessionId: number, isLocked: boolean) => {
