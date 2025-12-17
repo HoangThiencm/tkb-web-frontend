@@ -1,7 +1,8 @@
 'use client'
 
-import { useQuery } from '@tanstack/react-query'
-import { unitsAPI } from '@/lib/api'
+import { useState } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { unitsAPI, timetableAPI } from '@/lib/api'
 import Link from 'next/link'
 
 // Dashboard Card Component
@@ -39,15 +40,81 @@ function DashboardCard({ icon, title, description, href, onClick }: DashboardCar
 }
 
 export default function DashboardPage() {
-  const { data: units, isLoading } = useQuery({
+  const queryClient = useQueryClient()
+  
+  // State cho đơn vị và năm học
+  const [selectedUnitId, setSelectedUnitId] = useState<number | null>(null)
+  const [unitName, setUnitName] = useState<string>('')
+  const [schoolYear, setSchoolYear] = useState<string>('2025-2026')
+  const [showUnitInput, setShowUnitInput] = useState(false)
+  const [newUnitName, setNewUnitName] = useState('')
+  
+  // State cho quản lý đợt TKB
+  const [showSessionDialog, setShowSessionDialog] = useState(false)
+  const [newSessionName, setNewSessionName] = useState('')
+
+  // Fetch units
+  const { data: units, isLoading: unitsLoading } = useQuery({
     queryKey: ['units'],
     queryFn: () => unitsAPI.getAll(),
   })
 
-  // Get first unit for display (you can enhance this later)
-  const currentUnit = units && units.length > 0 ? units[0] : null
-  const unitName = currentUnit?.name || 'Chưa chọn đơn vị'
-  const schoolYear = '2025-2026' // You can get this from context/state later
+  // Fetch sessions khi đã chọn unit và school year
+  const { data: sessions, isLoading: sessionsLoading } = useQuery({
+    queryKey: ['timetable-sessions', selectedUnitId, schoolYear],
+    queryFn: () => {
+      if (!selectedUnitId) return []
+      return timetableAPI.getSessions(selectedUnitId, schoolYear)
+    },
+    enabled: !!selectedUnitId && !!schoolYear,
+  })
+
+  // Mutation để tạo đơn vị mới
+  const createUnitMutation = useMutation({
+    mutationFn: (name: string) => unitsAPI.create(name),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['units'] })
+      setSelectedUnitId(data.id)
+      setUnitName(data.name)
+      setShowUnitInput(false)
+      setNewUnitName('')
+    },
+  })
+
+  // Mutation để tạo đợt TKB mới
+  const createSessionMutation = useMutation({
+    mutationFn: async (sessionName: string) => {
+      if (!selectedUnitId) throw new Error('Chưa chọn đơn vị')
+      return timetableAPI.createSession(selectedUnitId, schoolYear, {
+        session_name: sessionName,
+        effective_date: new Date().toISOString().split('T')[0],
+        timetable: {},
+      })
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['timetable-sessions'] })
+      setShowSessionDialog(false)
+      setNewSessionName('')
+    },
+  })
+
+  // Mutation để khóa/mở khóa đợt TKB
+  const toggleLockMutation = useMutation({
+    mutationFn: async ({ sessionId, isLocked }: { sessionId: number; isLocked: boolean }) => {
+      return timetableAPI.toggleLock(sessionId, isLocked)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['timetable-sessions'] })
+    },
+  })
+
+  // Mutation để xóa đợt TKB
+  const deleteSessionMutation = useMutation({
+    mutationFn: (sessionId: number) => timetableAPI.deleteSession(sessionId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['timetable-sessions'] })
+    },
+  })
 
   // Icon color
   const iconColor = '#1890ff'
@@ -90,55 +157,178 @@ export default function DashboardPage() {
     </svg>
   )
 
-  const iconChart = (
-    <svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 24 24" fill="none" stroke={iconColor} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M3 3v18h18"/>
-      <path d="M18.7 8a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2v-2a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2z"/>
-      <path d="M8.7 15a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-2a2 2 0 0 1 2-2h1.7a2 2 0 0 1 2 2z"/>
-    </svg>
-  )
+  const handleCreateUnit = () => {
+    if (newUnitName.trim()) {
+      createUnitMutation.mutate(newUnitName.trim())
+    }
+  }
 
-  const iconSettings = (
-    <svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 24 24" fill="none" stroke={iconColor} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="3"></circle>
-      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-    </svg>
-  )
+  const handleCreateSession = () => {
+    if (newSessionName.trim()) {
+      createSessionMutation.mutate(newSessionName.trim())
+    }
+  }
 
-  const iconAI = (
-    <svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 24 24" fill="none" stroke={iconColor} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 8V4H8"/>
-      <rect x="4" y="4" width="16" height="16" rx="2"/>
-      <path d="M2 14h2"/>
-      <path d="M20 14h2"/>
-      <path d="M15 13v2a2 2 0 0 0 4 0v-2"/>
-      <path d="M15 13h4"/>
-    </svg>
-  )
+  const handleToggleLock = (sessionId: number, currentLockStatus: boolean) => {
+    if (confirm(`Bạn có chắc muốn ${currentLockStatus ? 'mở khóa' : 'khóa'} đợt TKB này?`)) {
+      toggleLockMutation.mutate({ sessionId, isLocked: !currentLockStatus })
+    }
+  }
+
+  const handleDeleteSession = (sessionId: number, sessionName: string) => {
+    if (confirm(`Bạn có chắc muốn xóa đợt TKB "${sessionName}"? Hành động này không thể hoàn tác.`)) {
+      deleteSessionMutation.mutate(sessionId)
+    }
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
       <main className="max-w-7xl mx-auto px-10 py-10">
         {/* Header */}
-        <div className="text-center mb-10">
+        <div className="text-center mb-6">
           <h1 className="dashboard-title">PHẦN MỀM XẾP THỜI KHÓA BIỂU</h1>
-          <p className="dashboard-subtitle">{unitName} - {schoolYear}</p>
+          <p className="dashboard-subtitle">{unitName || 'Chưa chọn đơn vị'} - {schoolYear}</p>
         </div>
 
-        {/* Dashboard Cards Grid */}
+        {/* Toolbar */}
+        <div className="bg-white rounded-lg shadow p-6 mb-8">
+          <div className="space-y-4">
+            {/* Hàng 1: Đơn vị và Năm học */}
+            <div className="flex flex-wrap items-center gap-4">
+              <div className="flex items-center gap-2">
+                <label className="font-semibold">Đơn vị:</label>
+                {!showUnitInput ? (
+                  <>
+                    <select
+                      value={selectedUnitId || ''}
+                      onChange={(e) => {
+                        const unitId = e.target.value ? parseInt(e.target.value) : null
+                        setSelectedUnitId(unitId)
+                        const unit = units?.find((u: any) => u.id === unitId)
+                        setUnitName(unit?.name || '')
+                      }}
+                      className="border rounded px-3 py-1 min-w-[200px]"
+                    >
+                      <option value="">-- Chọn đơn vị --</option>
+                      {units?.map((unit: any) => (
+                        <option key={unit.id} value={unit.id}>
+                          {unit.name}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={() => setShowUnitInput(true)}
+                      className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
+                    >
+                      + Thêm mới
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <input
+                      type="text"
+                      value={newUnitName}
+                      onChange={(e) => setNewUnitName(e.target.value)}
+                      placeholder="Nhập tên đơn vị mới"
+                      className="border rounded px-3 py-1 min-w-[200px]"
+                      onKeyPress={(e) => e.key === 'Enter' && handleCreateUnit()}
+                    />
+                    <button
+                      onClick={handleCreateUnit}
+                      disabled={createUnitMutation.isPending}
+                      className="px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600 disabled:opacity-50"
+                    >
+                      Lưu
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowUnitInput(false)
+                        setNewUnitName('')
+                      }}
+                      className="px-3 py-1 bg-gray-500 text-white rounded hover:bg-gray-600"
+                    >
+                      Hủy
+                    </button>
+                  </>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <label className="font-semibold">Năm học:</label>
+                <input
+                  type="text"
+                  value={schoolYear}
+                  onChange={(e) => setSchoolYear(e.target.value)}
+                  placeholder="2025-2026"
+                  className="border rounded px-3 py-1 w-32"
+                />
+              </div>
+            </div>
+
+            {/* Hàng 2: Quản lý đợt TKB */}
+            <div className="flex items-center gap-4 border-t pt-4">
+              <label className="font-semibold">Đợt TKB:</label>
+              <select
+                value=""
+                onChange={(e) => {
+                  // Có thể thêm logic chọn đợt TKB ở đây
+                }}
+                className="border rounded px-3 py-1 min-w-[250px]"
+                disabled={!selectedUnitId}
+              >
+                <option value="">-- Chọn đợt TKB --</option>
+                {sessions?.map((session: any) => (
+                  <option key={session.id} value={session.id}>
+                    {session.session_name} {session.is_locked ? '(Đã khóa)' : ''}
+                  </option>
+                ))}
+              </select>
+              <button
+                onClick={() => setShowSessionDialog(true)}
+                disabled={!selectedUnitId}
+                className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
+              >
+                + Thêm đợt mới
+              </button>
+            </div>
+
+            {/* Danh sách đợt TKB */}
+            {sessions && sessions.length > 0 && (
+              <div className="border-t pt-4">
+                <label className="font-semibold block mb-2">Danh sách đợt TKB:</label>
+                <div className="space-y-2">
+                  {sessions.map((session: any) => (
+                    <div
+                      key={session.id}
+                      className="flex items-center justify-between p-2 bg-gray-50 rounded"
+                    >
+                      <span>
+                        {session.session_name} {session.is_locked && <span className="text-red-600">(Đã khóa)</span>}
+                      </span>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleToggleLock(session.id, session.is_locked)}
+                          className="px-2 py-1 text-sm bg-yellow-500 text-white rounded hover:bg-yellow-600"
+                        >
+                          {session.is_locked ? 'Mở khóa' : 'Khóa'}
+                        </button>
+                        <button
+                          onClick={() => handleDeleteSession(session.id, session.session_name)}
+                          className="px-2 py-1 text-sm bg-red-500 text-white rounded hover:bg-red-600"
+                        >
+                          Xóa
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Dashboard Cards Grid - Các chức năng cần thiết */}
         <div className="dashboard-grid">
-          <DashboardCard
-            icon={iconTimetable}
-            title="Xem Thời Khóa Biểu"
-            description="Xem, chỉnh sửa thủ công và in ấn TKB."
-            href="/timetable"
-          />
-          <DashboardCard
-            icon={iconMagic}
-            title="Xếp Lịch Tự Động"
-            description="Thiết lập và chạy thuật toán để tạo TKB mới."
-            href="/autoschedule"
-          />
           <DashboardCard
             icon={iconDatabase}
             title="Dữ Liệu Nhà Trường"
@@ -152,24 +342,58 @@ export default function DashboardPage() {
             href="/assignment"
           />
           <DashboardCard
-            icon={iconChart}
-            title="Báo Cáo & Đánh Giá"
-            description="Xem thống kê, đánh giá chất lượng và xuất file Excel."
-            href="/reports"
+            icon={iconMagic}
+            title="Xếp Lịch Tự Động"
+            description="Thiết lập và chạy thuật toán để tạo TKB mới."
+            href="/autoschedule"
           />
           <DashboardCard
-            icon={iconSettings}
-            title="Thiết Lập Nâng Cao"
-            description="Quản lý tiết cố định, ngày nghỉ và các ràng buộc."
-            href="/settings"
-          />
-          <DashboardCard
-            icon={iconAI}
-            title="Trợ lý AI"
-            description="Tư vấn, phân tích và gợi ý cải tiến TKB."
-            href="/ai-assistant"
+            icon={iconTimetable}
+            title="Xem Thời Khóa Biểu"
+            description="Xem, chỉnh sửa thủ công và in ấn TKB."
+            href="/timetable"
           />
         </div>
+
+        {/* Dialog thêm đợt TKB mới */}
+        {showSessionDialog && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 w-96">
+              <h3 className="text-xl font-bold mb-4">Thêm đợt TKB mới</h3>
+              <div className="space-y-4">
+                <div>
+                  <label className="block mb-2 font-semibold">Tên đợt TKB:</label>
+                  <input
+                    type="text"
+                    value={newSessionName}
+                    onChange={(e) => setNewSessionName(e.target.value)}
+                    placeholder="Ví dụ: Đợt 1 - Học kỳ 1"
+                    className="w-full border rounded px-3 py-2"
+                    onKeyPress={(e) => e.key === 'Enter' && handleCreateSession()}
+                  />
+                </div>
+                <div className="flex gap-2 justify-end">
+                  <button
+                    onClick={() => {
+                      setShowSessionDialog(false)
+                      setNewSessionName('')
+                    }}
+                    className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
+                  >
+                    Hủy
+                  </button>
+                  <button
+                    onClick={handleCreateSession}
+                    disabled={!newSessionName.trim() || createSessionMutation.isPending}
+                    className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
+                  >
+                    {createSessionMutation.isPending ? 'Đang tạo...' : 'Tạo mới'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   )
